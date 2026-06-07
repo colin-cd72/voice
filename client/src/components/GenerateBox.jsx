@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 
 export default function GenerateBox({ slug, picked, script, setScript, onAddToShortlist, isOnShortlist }) {
@@ -41,14 +42,24 @@ export default function GenerateBox({ slug, picked, script, setScript, onAddToSh
             )}
           </p>
         </div>
-        {picked && onAddToShortlist && (
-          <button
-            onClick={() => onAddToShortlist(picked)}
-            disabled={isOnShortlist}
-            className="btn-ghost border border-ink-700 whitespace-nowrap"
-          >
-            {isOnShortlist ? '✓ on shortlist' : '+ add to shortlist'}
-          </button>
+        {picked && (
+          <div className="flex gap-2 flex-wrap">
+            {onAddToShortlist && (
+              <button
+                onClick={() => onAddToShortlist(picked)}
+                disabled={isOnShortlist}
+                className="btn-ghost border border-ink-700 whitespace-nowrap"
+              >
+                {isOnShortlist ? '✓ on shortlist' : '+ add to shortlist'}
+              </button>
+            )}
+            <Link
+              to={`/c/${slug}/script/${picked.voice_id}`}
+              className="btn-secondary whitespace-nowrap"
+            >
+              open script page →
+            </Link>
+          </div>
         )}
       </div>
 
