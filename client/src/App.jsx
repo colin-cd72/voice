@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home.jsx';
 import ProjectPage from './pages/ProjectPage.jsx';
+import ScriptPage from './pages/ScriptPage.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminProjects from './pages/AdminProjects.jsx';
 
@@ -21,6 +22,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/c/:slug" element={<ProjectPage />} />
+          <Route path="/c/:slug/script/:voice_id" element={<ScriptPage />} />
           <Route path="/admin" element={<AdminProjects />} />
           <Route path="/admin/login" element={<AdminLogin />} />
         </Routes>

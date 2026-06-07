@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 
 function ShortlistItem({ slug, item, script, onRemove, onUpdate, onPick, picked }) {
@@ -54,6 +55,13 @@ function ShortlistItem({ slug, item, script, onRemove, onUpdate, onPick, picked 
         <button onClick={play} disabled={busy} className="btn-secondary flex-1">
           {busy ? 'generating…' : audioUrl ? 'regenerate' : 'play with current script'}
         </button>
+        <Link
+          to={`/c/${slug}/script/${item.voice_id}`}
+          className="btn-ghost border border-ink-700"
+          title="open final script page"
+        >
+          script →
+        </Link>
         <button onClick={() => onPick(item)} className="btn-ghost border border-ink-700" title="use in generator above">
           ↑
         </button>

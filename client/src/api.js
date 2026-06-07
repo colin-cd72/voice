@@ -27,6 +27,7 @@ export const api = {
   adminDeleteProject: (slug) => jsonFetch(`/api/admin/projects/${slug}`, { method: 'DELETE' }),
 
   getProject: (slug) => jsonFetch(`/api/c/${slug}`),
+  getVoice: (slug, voiceId) => jsonFetch(`/api/c/${slug}/voices/${voiceId}`),
   accountVoices: (slug) => jsonFetch(`/api/c/${slug}/voices/account`),
   searchVoices: (slug, params) => {
     const qs = new URLSearchParams(params).toString();

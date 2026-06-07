@@ -53,6 +53,21 @@ export async function searchSharedVoices({ search = '', gender = '', age = '', a
   }));
 }
 
+export async function getVoice(voiceId) {
+  const res = await fetch(`${BASE}/voices/${voiceId}`, { headers: headers() });
+  if (!res.ok) throw new Error(`ElevenLabs voice lookup failed: ${res.status} ${await res.text()}`);
+  const v = await res.json();
+  return {
+    voice_id: v.voice_id,
+    name: v.name,
+    preview_url: v.preview_url,
+    labels: v.labels || {},
+    description: v.description || '',
+    category: v.category || 'unknown',
+    source: v.category === 'professional' || v.category === 'famous' ? 'library' : 'account',
+  };
+}
+
 export async function generateTts({ voiceId, text, model }) {
   const res = await fetch(`${BASE}/text-to-speech/${voiceId}`, {
     method: 'POST',

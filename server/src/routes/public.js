@@ -1,9 +1,9 @@
 import express from 'express';
 import { getDb } from '../db.js';
-import { listAccountVoices, searchSharedVoices } from '../elevenlabs.js';
+import { listAccountVoices, searchSharedVoices, getVoice } from '../elevenlabs.js';
 import { getOrGenerate, cacheKey } from '../audio-cache.js';
 
-const MAX_TEXT_LEN = 1000;
+const MAX_TEXT_LEN = 5000;
 
 export function publicRouter({ dataDir, defaultModel }) {
   const router = express.Router();
@@ -52,6 +52,30 @@ export function publicRouter({ dataDir, defaultModel }) {
     } catch (e) {
       console.error(e);
       res.status(502).json({ error: 'elevenlabs error', detail: String(e.message || e) });
+    }
+  });
+
+  router.get('/c/:slug/voices/:voice_id', loadProject, async (req, res) => {
+    const db = getDb();
+    const fromShortlist = db
+      .prepare('SELECT voice_id, voice_name AS name, voice_source AS source, voice_meta FROM shortlist_items WHERE project_id = ? AND voice_id = ?')
+      .get(req.project.id, req.params.voice_id);
+    if (fromShortlist) {
+      return res.json({
+        voice: {
+          voice_id: fromShortlist.voice_id,
+          name: fromShortlist.name,
+          source: fromShortlist.source,
+          labels: fromShortlist.voice_meta ? JSON.parse(fromShortlist.voice_meta) : {},
+        },
+      });
+    }
+    try {
+      const voice = await getVoice(req.params.voice_id);
+      res.json({ voice });
+    } catch (e) {
+      console.error(e);
+      res.status(404).json({ error: 'voice not found', detail: String(e.message || e) });
     }
   });
 
