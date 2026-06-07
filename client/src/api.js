@@ -40,4 +40,7 @@ export const api = {
   updateShortlist: (slug, id, patch) =>
     jsonFetch(`/api/c/${slug}/shortlist/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   removeFromShortlist: (slug, id) => jsonFetch(`/api/c/${slug}/shortlist/${id}`, { method: 'DELETE' }),
+  updatePronunciations: (slug, pronunciations) =>
+    jsonFetch(`/api/c/${slug}/pronunciations`, { method: 'PATCH', body: JSON.stringify({ pronunciations }) }),
+  zipUrl: (slug) => `/api/c/${slug}/zip`,
 };

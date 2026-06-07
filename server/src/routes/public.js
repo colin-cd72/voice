@@ -1,4 +1,7 @@
 import express from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
+import archiver from 'archiver';
 import { getDb } from '../db.js';
 import { listAccountVoices, searchSharedVoices, getVoice } from '../elevenlabs.js';
 import { getOrGenerate, cacheKey } from '../audio-cache.js';
@@ -11,10 +14,33 @@ export function publicRouter({ dataDir, defaultModel }) {
   function loadProject(req, res, next) {
     const { slug } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT id, slug, name, default_script FROM projects WHERE slug = ?').get(slug);
+    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations FROM projects WHERE slug = ?').get(slug);
     if (!project) return res.status(404).json({ error: 'project not found' });
     req.project = project;
     next();
+  }
+
+  function parsePronunciations(raw) {
+    const out = [];
+    if (!raw) return out;
+    for (const rawLine of String(raw).split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const m = line.match(/^(.+?)\s*(?:=>|->|:|=)\s*(.+)$/);
+      if (m) out.push({ term: m[1].trim(), replacement: m[2].trim() });
+    }
+    return out;
+  }
+
+  function applyPronunciations(text, pairs) {
+    let out = text;
+    for (const { term, replacement } of pairs) {
+      if (!term) continue;
+      const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`\\b${esc}\\b`, 'gi');
+      out = out.replace(re, replacement);
+    }
+    return out;
   }
 
   router.get('/c/:slug', loadProject, (req, res) => {
@@ -85,10 +111,13 @@ export function publicRouter({ dataDir, defaultModel }) {
     if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' });
     if (text.length > MAX_TEXT_LEN) return res.status(400).json({ error: `text too long (max ${MAX_TEXT_LEN})` });
 
+    const pairs = parsePronunciations(req.project.pronunciations);
+    const finalText = applyPronunciations(text, pairs);
+
     try {
       const { key } = await getOrGenerate({
         voiceId: voice_id,
-        text,
+        text: finalText,
         model: defaultModel,
         dataDir,
       });
@@ -99,6 +128,15 @@ export function publicRouter({ dataDir, defaultModel }) {
     }
   });
 
+  router.patch('/c/:slug/pronunciations', loadProject, (req, res) => {
+    const { pronunciations } = req.body || {};
+    if (typeof pronunciations !== 'string') return res.status(400).json({ error: 'pronunciations must be string' });
+    if (pronunciations.length > 10000) return res.status(400).json({ error: 'too long' });
+    const db = getDb();
+    db.prepare('UPDATE projects SET pronunciations = ? WHERE id = ?').run(pronunciations, req.project.id);
+    res.json({ ok: true });
+  });
+
   router.get('/c/:slug/generation-url', loadProject, (req, res) => {
     const { voice_id, text } = req.query;
     if (!voice_id || !text) return res.status(400).json({ error: 'voice_id and text required' });
@@ -106,6 +144,44 @@ export function publicRouter({ dataDir, defaultModel }) {
     const db = getDb();
     const row = db.prepare('SELECT cache_key FROM generations WHERE cache_key = ?').get(key);
     res.json({ cache_key: key, exists: !!row, audio_url: row ? `/audio/${key}.mp3` : null });
+  });
+
+  router.post('/c/:slug/zip', loadProject, (req, res) => {
+    const { items, zip_name } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items array required' });
+    }
+    const db = getDb();
+    const resolved = [];
+    for (const it of items) {
+      if (!it.cache_key || typeof it.cache_key !== 'string') continue;
+      const row = db.prepare('SELECT audio_path FROM generations WHERE cache_key = ?').get(it.cache_key);
+      if (!row) continue;
+      const abs = path.join(dataDir, row.audio_path);
+      if (!fs.existsSync(abs)) continue;
+      const safeName = (it.filename || `${it.cache_key.slice(0, 8)}.mp3`).replace(/[^a-z0-9._-]+/gi, '-');
+      resolved.push({ abs, name: safeName });
+    }
+    if (resolved.length === 0) return res.status(404).json({ error: 'no generated audio matches' });
+
+    const safeZipName = (zip_name || `${req.project.slug}.zip`).replace(/[^a-z0-9._-]+/gi, '-');
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="${safeZipName}"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (err) => {
+      console.error('archive error', err);
+      try { res.status(500).end(); } catch {}
+    });
+    archive.pipe(res);
+    const used = new Set();
+    for (const r of resolved) {
+      let name = r.name;
+      let n = 2;
+      while (used.has(name)) name = r.name.replace(/(\.mp3)?$/i, `-${n++}.mp3`);
+      used.add(name);
+      archive.file(r.abs, { name });
+    }
+    archive.finalize();
   });
 
   router.post('/c/:slug/shortlist', loadProject, (req, res) => {

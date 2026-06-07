@@ -45,6 +45,11 @@ export function initDb(dataDir) {
   `;
   db.exec(schema);
 
+  const cols = db.prepare("PRAGMA table_info(projects)").all();
+  if (!cols.find((c) => c.name === 'pronunciations')) {
+    db.exec("ALTER TABLE projects ADD COLUMN pronunciations TEXT NOT NULL DEFAULT ''");
+  }
+
   return db;
 }
 

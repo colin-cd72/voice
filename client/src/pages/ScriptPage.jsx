@@ -1,52 +1,64 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 
 const MAX_LEN = 5000;
 
-function ScriptBlock({ index, slug, voice, project, initialScript, onRemove, canRemove }) {
-  const [script, setScript] = useState(initialScript || '');
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [label, setLabel] = useState('');
+function parseScriptEmail(raw) {
+  const text = raw.replace(/\r\n/g, '\n').trim();
+  if (!text) return [];
+  const paragraphs = text.split(/\n\s*\n+/);
+  const blocks = [];
+  const cueRe = /^Cue\s+[\w.-]+(?:\s*[—\-:]\s*(.+))?/i;
+  for (const para of paragraphs) {
+    const lines = para.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+    const m = lines[0].match(cueRe);
+    if (m) {
+      const label = lines[0];
+      const body = lines.slice(1).join(' ').trim();
+      if (body) blocks.push({ label, script: body });
+    }
+  }
+  return blocks;
+}
 
+function downloadFilenameFor(project, voice, block, idx) {
+  const labelSlug = (block.label || `block-${idx + 1}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  const voiceSlug = voice ? voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'voice';
+  return `${project.slug}-${voiceSlug}-${labelSlug}.mp3`;
+}
+
+let nextId = 1;
+function newBlock(initial = {}) {
+  return { id: nextId++, label: '', script: '', audioUrl: null, cacheKey: null, status: 'idle', error: '', ...initial };
+}
+
+function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, canRemove }) {
   async function generate() {
-    if (!voice) {
-      setError('pick a voice first');
-      return;
-    }
-    if (!script.trim()) {
-      setError('script is empty');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setAudioUrl(null);
+    if (!voice) return onChange({ ...block, error: 'pick a voice first' });
+    if (!block.script.trim()) return onChange({ ...block, error: 'script is empty' });
+    onChange({ ...block, status: 'busy', error: '', audioUrl: null, cacheKey: null });
     try {
-      const { audio_url } = await api.generate(slug, voice.voice_id, script);
-      setAudioUrl(audio_url + '?t=' + Date.now());
+      const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, block.script);
+      onChange({ ...block, status: 'done', audioUrl: audio_url + '?t=' + Date.now(), cacheKey: cache_key, error: '' });
     } catch (err) {
-      setError(err.message + (err.detail ? ` — ${err.detail}` : ''));
-    } finally {
-      setBusy(false);
+      onChange({ ...block, status: 'error', error: err.message + (err.detail ? ` — ${err.detail}` : '') });
     }
   }
 
-  const safeLabel = (label || `block-${index + 1}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  const voiceSlug = voice ? voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'voice';
-  const downloadName = `${project.slug}-${voiceSlug}-${safeLabel}.mp3`;
+  const downloadName = downloadFilenameFor(project, voice, block, idx);
 
   return (
     <div className="card p-5 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="chip">{index + 1}</span>
+          <span className="chip">{idx + 1}</span>
           <input
             className="input flex-1 text-sm"
-            placeholder={`label (optional, e.g. "session 1 intro")`}
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            placeholder={`label (e.g. "Cue 102 — VOG Housekeeping")`}
+            value={block.label}
+            onChange={(e) => onChange({ ...block, label: e.target.value })}
           />
         </div>
         {canRemove && (
@@ -57,27 +69,29 @@ function ScriptBlock({ index, slug, voice, project, initialScript, onRemove, can
       </div>
 
       <textarea
-        className="input min-h-[120px] text-sm leading-relaxed"
+        className="input min-h-[100px] text-sm leading-relaxed"
         placeholder="paste or type the script for this block…"
-        value={script}
-        onChange={(e) => setScript(e.target.value.slice(0, MAX_LEN))}
+        value={block.script}
+        onChange={(e) => onChange({ ...block, script: e.target.value.slice(0, MAX_LEN) })}
       />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <span className="text-xs text-zinc-500">
-          {script.length.toLocaleString()} / {MAX_LEN.toLocaleString()} chars
+          {block.script.length.toLocaleString()} / {MAX_LEN.toLocaleString()} chars
+          {block.status === 'busy' && ' · generating…'}
+          {block.status === 'done' && ' · ✓ ready'}
         </span>
-        <button onClick={generate} disabled={busy || !voice} className="btn-primary">
-          {busy ? 'generating…' : audioUrl ? 'regenerate' : 'generate mp3'}
+        <button onClick={generate} disabled={block.status === 'busy' || !voice} className="btn-primary">
+          {block.status === 'busy' ? 'generating…' : block.audioUrl ? 'regenerate' : 'generate'}
         </button>
       </div>
 
-      {error && <div className="text-sm text-red-400">{error}</div>}
+      {block.error && <div className="text-sm text-red-400">{block.error}</div>}
 
-      {audioUrl && (
+      {block.audioUrl && (
         <div className="space-y-2 pt-2 border-t border-ink-700">
-          <audio key={audioUrl} controls autoPlay src={audioUrl} />
-          <a href={audioUrl} download={downloadName} className="btn-primary w-full justify-center">
+          <audio key={block.audioUrl} controls src={block.audioUrl} />
+          <a href={block.audioUrl} download={downloadName} className="btn-primary w-full justify-center">
             ⬇ download {downloadName}
           </a>
         </div>
@@ -86,24 +100,34 @@ function ScriptBlock({ index, slug, voice, project, initialScript, onRemove, can
   );
 }
 
-let nextBlockId = 1;
-
 export default function ScriptPage() {
   const { slug, voice_id } = useParams();
   const [project, setProject] = useState(null);
   const [shortlist, setShortlist] = useState([]);
   const [voice, setVoice] = useState(null);
-  const [blocks, setBlocks] = useState([{ id: nextBlockId++, initialScript: '' }]);
+  const [blocks, setBlocks] = useState([newBlock()]);
   const [error, setError] = useState('');
   const [seededDefault, setSeededDefault] = useState(false);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+
+  const [showPron, setShowPron] = useState(false);
+  const [pron, setPron] = useState('');
+  const [pronSavedAt, setPronSavedAt] = useState(0);
+  const pronTimer = useRef(null);
+
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [zipBusy, setZipBusy] = useState(false);
 
   useEffect(() => {
     api.getProject(slug)
       .then((p) => {
         setProject(p.project);
         setShortlist(p.shortlist);
+        setPron(p.project.pronunciations || '');
         if (!seededDefault && p.project.default_script) {
-          setBlocks([{ id: nextBlockId++, initialScript: p.project.default_script }]);
+          setBlocks([newBlock({ script: p.project.default_script })]);
           setSeededDefault(true);
         }
       })
@@ -120,11 +144,95 @@ export default function ScriptPage() {
       .catch((err) => setError(err.message));
   }, [slug, voice_id]);
 
+  function updateBlock(updated) {
+    setBlocks((bs) => bs.map((b) => (b.id === updated.id ? updated : b)));
+  }
   function addBlock() {
-    setBlocks((b) => [...b, { id: nextBlockId++, initialScript: '' }]);
+    setBlocks((bs) => [...bs, newBlock()]);
   }
   function removeBlock(id) {
-    setBlocks((b) => b.filter((x) => x.id !== id));
+    setBlocks((bs) => bs.filter((b) => b.id !== id));
+  }
+
+  function applyImport(mode) {
+    const parsed = parseScriptEmail(importText);
+    if (parsed.length === 0) {
+      alert('No "Cue …" blocks detected. Each block should start with a line like "Cue 102 — VOG Housekeeping".');
+      return;
+    }
+    const newBlocks = parsed.map((p) => newBlock({ label: p.label, script: p.script }));
+    setBlocks((bs) => (mode === 'append' ? [...bs.filter((b) => b.script || b.label), ...newBlocks] : newBlocks));
+    setImportText('');
+    setShowImport(false);
+  }
+
+  function savePronDebounced(value) {
+    setPron(value);
+    if (pronTimer.current) clearTimeout(pronTimer.current);
+    pronTimer.current = setTimeout(async () => {
+      try {
+        await api.updatePronunciations(slug, value);
+        setPronSavedAt(Date.now());
+      } catch (err) {
+        setError(err.message);
+      }
+    }, 700);
+  }
+
+  async function generateAll() {
+    setBatchBusy(true);
+    try {
+      for (const b of blocks) {
+        if (b.status === 'done') continue;
+        if (!b.script.trim()) continue;
+        await new Promise((r) => setTimeout(r, 150));
+        const current = blocks.find((x) => x.id === b.id) || b;
+        updateBlock({ ...current, status: 'busy', error: '' });
+        try {
+          const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, b.script);
+          updateBlock({ ...current, status: 'done', audioUrl: audio_url + '?t=' + Date.now(), cacheKey: cache_key, error: '' });
+        } catch (err) {
+          updateBlock({ ...current, status: 'error', error: err.message + (err.detail ? ` — ${err.detail}` : '') });
+        }
+      }
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function downloadZip() {
+    const ready = blocks.filter((b) => b.cacheKey);
+    if (ready.length === 0) {
+      alert('no generated blocks yet — click "generate all" first');
+      return;
+    }
+    setZipBusy(true);
+    try {
+      const items = ready.map((b, i) => ({
+        cache_key: b.cacheKey,
+        filename: downloadFilenameFor(project, voice, b, blocks.indexOf(b)),
+      }));
+      const zipName = `${project.slug}-${voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.zip`;
+      const res = await fetch(api.zipUrl(slug), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, zip_name: zipName }),
+      });
+      if (!res.ok) throw new Error(`zip failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setZipBusy(false);
+    }
   }
 
   if (error && !project) {
@@ -143,6 +251,8 @@ export default function ScriptPage() {
     ? [voice.labels?.gender, voice.labels?.age, voice.labels?.accent, voice.labels?.use_case].filter(Boolean)
     : [];
 
+  const readyCount = blocks.filter((b) => b.cacheKey).length;
+
   return (
     <div className="space-y-6">
       <div>
@@ -151,7 +261,7 @@ export default function ScriptPage() {
         </Link>
         <h1 className="h-display text-3xl mt-1">script</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          one block per intro — each generates its own mp3 with its own download link
+          one block per cue · paste a script email to auto-import · download all as a zip
         </p>
       </div>
 
@@ -224,23 +334,104 @@ export default function ScriptPage() {
       )}
 
       {voice_id && (
-        <div className="space-y-4">
-          {blocks.map((b, i) => (
-            <ScriptBlock
-              key={b.id}
-              index={i}
-              slug={slug}
-              voice={voice}
-              project={project}
-              initialScript={b.initialScript}
-              canRemove={blocks.length > 1}
-              onRemove={() => removeBlock(b.id)}
-            />
-          ))}
-          <button onClick={addBlock} className="btn-secondary w-full">
-            + add another script block
-          </button>
-        </div>
+        <>
+          <div className="card p-4 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <button
+                onClick={() => setShowPron((v) => !v)}
+                className="text-sm text-zinc-300 hover:text-zinc-100"
+              >
+                {showPron ? '▾' : '▸'} pronunciation overrides
+                {pron && <span className="text-xs text-zinc-500 ml-2">({pron.split('\n').filter((l) => l.trim() && l.includes('=')).length} active)</span>}
+              </button>
+              {pronSavedAt > 0 && Date.now() - pronSavedAt < 3000 && (
+                <span className="text-xs text-accent">saved ✓</span>
+              )}
+            </div>
+            {showPron && (
+              <>
+                <p className="text-xs text-zinc-500">
+                  one per line: <code className="chip">term =&gt; replacement</code> · case-insensitive whole-word match · applied before every generation
+                </p>
+                <textarea
+                  className="input min-h-[110px] font-mono text-xs"
+                  placeholder={'Straubel => STROW-buhl\nAaru => ARE-RU\nHoplamazian => HOP-luh-MAY-zee-un'}
+                  value={pron}
+                  onChange={(e) => savePronDebounced(e.target.value)}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="card p-4 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <button
+                onClick={() => setShowImport((v) => !v)}
+                className="text-sm text-zinc-300 hover:text-zinc-100"
+              >
+                {showImport ? '▾' : '▸'} import from script email
+              </button>
+            </div>
+            {showImport && (
+              <>
+                <p className="text-xs text-zinc-500">
+                  paste the full email — blocks like <code className="chip">Cue 102 — VOG Housekeeping</code> followed by the script will be detected
+                </p>
+                <textarea
+                  className="input min-h-[160px] font-mono text-xs"
+                  placeholder="Cue 102 — VOG Housekeeping
+WELCOME BACK TO ASPEN…
+
+Cue 104 — VOG Housekeeping
+PLEASE TAKE YOUR SEATS…"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => applyImport('replace')} className="btn-primary">
+                    replace blocks
+                  </button>
+                  <button onClick={() => applyImport('append')} className="btn-secondary">
+                    append to current
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-3 sticky top-[64px] bg-ink-950/80 backdrop-blur py-3 -mx-2 px-2 rounded-lg border border-ink-800 z-[5]">
+            <div className="text-sm text-zinc-400">
+              {blocks.length} block{blocks.length === 1 ? '' : 's'} · {readyCount} generated
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={generateAll} disabled={batchBusy || !voice} className="btn-secondary">
+                {batchBusy ? 'generating…' : 'generate all'}
+              </button>
+              <button onClick={downloadZip} disabled={zipBusy || readyCount === 0} className="btn-primary">
+                {zipBusy ? 'zipping…' : `⬇ download all (.zip${readyCount > 0 ? `, ${readyCount}` : ''})`}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {blocks.map((b, i) => (
+              <ScriptBlock
+                key={b.id}
+                block={b}
+                idx={i}
+                voice={voice}
+                project={project}
+                slug={slug}
+                onChange={updateBlock}
+                onRemove={() => removeBlock(b.id)}
+                canRemove={blocks.length > 1}
+              />
+            ))}
+            <button onClick={addBlock} className="btn-secondary w-full">
+              + add another script block
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
