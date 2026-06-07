@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import VoiceSearch from '../components/VoiceSearch.jsx';
 import GenerateBox from '../components/GenerateBox.jsx';
@@ -53,9 +53,14 @@ export default function ProjectPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="h-display text-3xl">{project.name}</h1>
-        <p className="text-sm text-zinc-500">voice samples · {slug}</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="h-display text-3xl">{project.name}</h1>
+          <p className="text-sm text-zinc-500">voice samples · {slug}</p>
+        </div>
+        <Link to={`/c/${slug}/script`} className="btn-primary">
+          final script page →
+        </Link>
       </div>
 
       <GenerateBox

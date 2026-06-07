@@ -22,6 +22,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/c/:slug" element={<ProjectPage />} />
+          <Route path="/c/:slug/script" element={<ScriptPage />} />
           <Route path="/c/:slug/script/:voice_id" element={<ScriptPage />} />
           <Route path="/admin" element={<AdminProjects />} />
           <Route path="/admin/login" element={<AdminLogin />} />
