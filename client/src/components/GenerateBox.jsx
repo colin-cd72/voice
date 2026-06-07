@@ -57,7 +57,7 @@ export default function GenerateBox({ slug, picked, script, setScript, onAddToSh
               to={`/c/${slug}/script/${picked.voice_id}`}
               className="btn-secondary whitespace-nowrap"
             >
-              open script page →
+              script page →
             </Link>
           </div>
         )}

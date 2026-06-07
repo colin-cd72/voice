@@ -59,7 +59,7 @@ export default function ProjectPage() {
           <p className="text-sm text-zinc-500">voice samples · {slug}</p>
         </div>
         <Link to={`/c/${slug}/script`} className="btn-primary">
-          final script page →
+          script page →
         </Link>
       </div>
 

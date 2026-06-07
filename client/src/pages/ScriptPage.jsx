@@ -4,22 +4,108 @@ import { api } from '../api.js';
 
 const MAX_LEN = 5000;
 
+function ScriptBlock({ index, slug, voice, project, initialScript, onRemove, canRemove }) {
+  const [script, setScript] = useState(initialScript || '');
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [label, setLabel] = useState('');
+
+  async function generate() {
+    if (!voice) {
+      setError('pick a voice first');
+      return;
+    }
+    if (!script.trim()) {
+      setError('script is empty');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setAudioUrl(null);
+    try {
+      const { audio_url } = await api.generate(slug, voice.voice_id, script);
+      setAudioUrl(audio_url + '?t=' + Date.now());
+    } catch (err) {
+      setError(err.message + (err.detail ? ` — ${err.detail}` : ''));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const safeLabel = (label || `block-${index + 1}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  const voiceSlug = voice ? voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'voice';
+  const downloadName = `${project.slug}-${voiceSlug}-${safeLabel}.mp3`;
+
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="chip">{index + 1}</span>
+          <input
+            className="input flex-1 text-sm"
+            placeholder={`label (optional, e.g. "session 1 intro")`}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+        {canRemove && (
+          <button onClick={onRemove} className="text-xs text-zinc-500 hover:text-red-400">
+            remove
+          </button>
+        )}
+      </div>
+
+      <textarea
+        className="input min-h-[120px] text-sm leading-relaxed"
+        placeholder="paste or type the script for this block…"
+        value={script}
+        onChange={(e) => setScript(e.target.value.slice(0, MAX_LEN))}
+      />
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <span className="text-xs text-zinc-500">
+          {script.length.toLocaleString()} / {MAX_LEN.toLocaleString()} chars
+        </span>
+        <button onClick={generate} disabled={busy || !voice} className="btn-primary">
+          {busy ? 'generating…' : audioUrl ? 'regenerate' : 'generate mp3'}
+        </button>
+      </div>
+
+      {error && <div className="text-sm text-red-400">{error}</div>}
+
+      {audioUrl && (
+        <div className="space-y-2 pt-2 border-t border-ink-700">
+          <audio key={audioUrl} controls autoPlay src={audioUrl} />
+          <a href={audioUrl} download={downloadName} className="btn-primary w-full justify-center">
+            ⬇ download {downloadName}
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+let nextBlockId = 1;
+
 export default function ScriptPage() {
   const { slug, voice_id } = useParams();
   const [project, setProject] = useState(null);
   const [shortlist, setShortlist] = useState([]);
   const [voice, setVoice] = useState(null);
-  const [script, setScript] = useState('');
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [blocks, setBlocks] = useState([{ id: nextBlockId++, initialScript: '' }]);
   const [error, setError] = useState('');
+  const [seededDefault, setSeededDefault] = useState(false);
 
   useEffect(() => {
     api.getProject(slug)
       .then((p) => {
         setProject(p.project);
         setShortlist(p.shortlist);
-        setScript((prev) => prev || p.project.default_script || '');
+        if (!seededDefault && p.project.default_script) {
+          setBlocks([{ id: nextBlockId++, initialScript: p.project.default_script }]);
+          setSeededDefault(true);
+        }
       })
       .catch((err) => setError(err.message));
   }, [slug]);
@@ -34,33 +120,20 @@ export default function ScriptPage() {
       .catch((err) => setError(err.message));
   }, [slug, voice_id]);
 
-  async function generate() {
-    if (!voice_id) {
-      setError('pick a voice first');
-      return;
-    }
-    if (!script.trim()) {
-      setError('script is empty');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setAudioUrl(null);
-    try {
-      const { audio_url } = await api.generate(slug, voice_id, script);
-      setAudioUrl(audio_url + '?t=' + Date.now());
-    } catch (err) {
-      setError(err.message + (err.detail ? ` — ${err.detail}` : ''));
-    } finally {
-      setBusy(false);
-    }
+  function addBlock() {
+    setBlocks((b) => [...b, { id: nextBlockId++, initialScript: '' }]);
+  }
+  function removeBlock(id) {
+    setBlocks((b) => b.filter((x) => x.id !== id));
   }
 
   if (error && !project) {
     return (
       <div className="card p-6">
         <div className="text-red-400 mb-2">error: {error}</div>
-        <Link to={`/c/${slug}`} className="text-zinc-400 hover:text-zinc-100 underline text-sm">back to project</Link>
+        <Link to={`/c/${slug}`} className="text-zinc-400 hover:text-zinc-100 underline text-sm">
+          back to project
+        </Link>
       </div>
     );
   }
@@ -70,19 +143,16 @@ export default function ScriptPage() {
     ? [voice.labels?.gender, voice.labels?.age, voice.labels?.accent, voice.labels?.use_case].filter(Boolean)
     : [];
 
-  const downloadName = voice
-    ? `${project.slug}-${voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.mp3`
-    : 'voiceover.mp3';
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <Link to={`/c/${slug}`} className="text-xs text-zinc-500 hover:text-zinc-100">
-            ← {project.name}
-          </Link>
-          <h1 className="h-display text-3xl mt-1">final script</h1>
-        </div>
+      <div>
+        <Link to={`/c/${slug}`} className="text-xs text-zinc-500 hover:text-zinc-100">
+          ← {project.name}
+        </Link>
+        <h1 className="h-display text-3xl mt-1">script</h1>
+        <p className="text-sm text-zinc-500 mt-1">
+          one block per intro — each generates its own mp3 with its own download link
+        </p>
       </div>
 
       {!voice_id ? (
@@ -131,9 +201,9 @@ export default function ScriptPage() {
               <div className="font-medium text-lg mt-1">{voice.name}</div>
               <div className="text-xs text-zinc-500 capitalize mt-0.5">{voice.source}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {voice.preview_url && (
-                <div className="w-72 max-w-full">
+                <div className="w-64 max-w-full">
                   <div className="text-xs text-zinc-500 mb-1">voice preview</div>
                   <audio controls preload="none" src={voice.preview_url} />
                 </div>
@@ -153,45 +223,25 @@ export default function ScriptPage() {
         </div>
       )}
 
-      <div className="card p-5 space-y-4">
-        <div>
-          <h2 className="h-display text-xl">script</h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            paste the full voiceover copy below — up to {MAX_LEN.toLocaleString()} characters
-          </p>
-        </div>
-
-        <textarea
-          className="input min-h-[260px] font-mono text-sm leading-relaxed"
-          placeholder="paste or type the final script…"
-          value={script}
-          onChange={(e) => setScript(e.target.value.slice(0, MAX_LEN))}
-        />
-
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <span className="text-xs text-zinc-500">
-            {script.length.toLocaleString()} / {MAX_LEN.toLocaleString()} chars
-          </span>
-          <button onClick={generate} disabled={busy || !voice_id} className="btn-primary">
-            {busy ? 'generating…' : audioUrl ? 'regenerate' : voice_id ? 'generate mp3' : 'pick a voice above'}
+      {voice_id && (
+        <div className="space-y-4">
+          {blocks.map((b, i) => (
+            <ScriptBlock
+              key={b.id}
+              index={i}
+              slug={slug}
+              voice={voice}
+              project={project}
+              initialScript={b.initialScript}
+              canRemove={blocks.length > 1}
+              onRemove={() => removeBlock(b.id)}
+            />
+          ))}
+          <button onClick={addBlock} className="btn-secondary w-full">
+            + add another script block
           </button>
         </div>
-
-        {error && <div className="text-sm text-red-400">{error}</div>}
-
-        {audioUrl && (
-          <div className="space-y-3 pt-2 border-t border-ink-700">
-            <audio key={audioUrl} controls autoPlay src={audioUrl} />
-            <a
-              href={audioUrl}
-              download={downloadName}
-              className="btn-primary w-full justify-center"
-            >
-              ⬇ download {downloadName}
-            </a>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

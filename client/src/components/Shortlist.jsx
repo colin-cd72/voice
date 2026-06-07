@@ -58,7 +58,7 @@ function ShortlistItem({ slug, item, script, onRemove, onUpdate, onPick, picked 
         <Link
           to={`/c/${slug}/script/${item.voice_id}`}
           className="btn-ghost border border-ink-700"
-          title="open final script page"
+          title="open script page"
         >
           script →
         </Link>
