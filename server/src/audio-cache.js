@@ -4,18 +4,20 @@ import fs from 'node:fs';
 import { getDb } from './db.js';
 import { generateTts } from './elevenlabs.js';
 
-export function cacheKey({ voiceId, text, model }) {
+export function cacheKey({ voiceId, text, model, speed = 1.0 }) {
   const h = crypto.createHash('sha256');
   h.update(voiceId);
   h.update('|');
   h.update(model);
   h.update('|');
+  h.update(`s${Number(speed).toFixed(2)}`);
+  h.update('|');
   h.update(text);
   return h.digest('hex');
 }
 
-export async function getOrGenerate({ voiceId, text, model, dataDir }) {
-  const key = cacheKey({ voiceId, text, model });
+export async function getOrGenerate({ voiceId, text, model, speed = 1.0, dataDir }) {
+  const key = cacheKey({ voiceId, text, model, speed });
   const db = getDb();
   const existing = db.prepare('SELECT * FROM generations WHERE cache_key = ?').get(key);
   if (existing) {
@@ -26,7 +28,7 @@ export async function getOrGenerate({ voiceId, text, model, dataDir }) {
     db.prepare('DELETE FROM generations WHERE cache_key = ?').run(key);
   }
 
-  const buf = await generateTts({ voiceId, text, model });
+  const buf = await generateTts({ voiceId, text, model, speed });
   const relPath = path.join('audio', `${key}.mp3`);
   const absPath = path.join(dataDir, relPath);
   fs.writeFileSync(absPath, buf);

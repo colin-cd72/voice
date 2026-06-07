@@ -68,14 +68,21 @@ export async function getVoice(voiceId) {
   };
 }
 
-export async function generateTts({ voiceId, text, model }) {
+export async function generateTts({ voiceId, text, model, speed = 1.0 }) {
+  const clampedSpeed = Math.max(0.7, Math.min(1.2, Number(speed) || 1.0));
   const res = await fetch(`${BASE}/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json', accept: 'audio/mpeg' },
     body: JSON.stringify({
       text,
       model_id: model,
-      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true },
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.0,
+        use_speaker_boost: true,
+        speed: clampedSpeed,
+      },
     }),
   });
   if (!res.ok) {

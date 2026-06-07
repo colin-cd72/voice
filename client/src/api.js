@@ -33,8 +33,8 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return jsonFetch(`/api/c/${slug}/voices/search?${qs}`);
   },
-  generate: (slug, voice_id, text) =>
-    jsonFetch(`/api/c/${slug}/generate`, { method: 'POST', body: JSON.stringify({ voice_id, text }) }),
+  generate: (slug, voice_id, text, speed = 1.0) =>
+    jsonFetch(`/api/c/${slug}/generate`, { method: 'POST', body: JSON.stringify({ voice_id, text, speed }) }),
   addToShortlist: (slug, payload) =>
     jsonFetch(`/api/c/${slug}/shortlist`, { method: 'POST', body: JSON.stringify(payload) }),
   updateShortlist: (slug, id, patch) =>

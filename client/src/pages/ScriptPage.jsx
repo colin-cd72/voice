@@ -31,7 +31,7 @@ function downloadFilenameFor(project, voice, block, idx) {
 
 let nextId = 1;
 function newBlock(initial = {}) {
-  return { id: nextId++, label: '', script: '', audioUrl: null, cacheKey: null, status: 'idle', error: '', ...initial };
+  return { id: nextId++, label: '', script: '', speed: 1.0, audioUrl: null, cacheKey: null, status: 'idle', error: '', ...initial };
 }
 
 function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, canRemove }) {
@@ -40,7 +40,7 @@ function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, can
     if (!block.script.trim()) return onChange({ ...block, error: 'script is empty' });
     onChange({ ...block, status: 'busy', error: '', audioUrl: null, cacheKey: null });
     try {
-      const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, block.script);
+      const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, block.script, block.speed);
       onChange({ ...block, status: 'done', audioUrl: audio_url + '?t=' + Date.now(), cacheKey: cache_key, error: '' });
     } catch (err) {
       onChange({ ...block, status: 'error', error: err.message + (err.detail ? ` — ${err.detail}` : '') });
@@ -81,9 +81,34 @@ function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, can
           {block.status === 'busy' && ' · generating…'}
           {block.status === 'done' && ' · ✓ ready'}
         </span>
-        <button onClick={generate} disabled={block.status === 'busy' || !voice} className="btn-primary">
-          {block.status === 'busy' ? 'generating…' : block.audioUrl ? 'regenerate' : 'generate'}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            speed
+            <input
+              type="range"
+              min="0.7"
+              max="1.2"
+              step="0.05"
+              value={block.speed}
+              onChange={(e) => onChange({ ...block, speed: parseFloat(e.target.value) })}
+              className="accent-accent w-24"
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <span className="tabular-nums w-10 text-right">{block.speed.toFixed(2)}x</span>
+            {block.speed !== 1.0 && (
+              <button
+                onClick={() => onChange({ ...block, speed: 1.0 })}
+                className="text-zinc-500 hover:text-zinc-100"
+                title="reset speed to 1.0"
+              >
+                ↺
+              </button>
+            )}
+          </label>
+          <button onClick={generate} disabled={block.status === 'busy' || !voice} className="btn-primary">
+            {block.status === 'busy' ? 'generating…' : block.audioUrl ? 'regenerate' : 'generate'}
+          </button>
+        </div>
       </div>
 
       {block.error && <div className="text-sm text-red-400">{block.error}</div>}
@@ -189,7 +214,7 @@ export default function ScriptPage() {
         const current = blocks.find((x) => x.id === b.id) || b;
         updateBlock({ ...current, status: 'busy', error: '' });
         try {
-          const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, b.script);
+          const { audio_url, cache_key } = await api.generate(slug, voice.voice_id, b.script, b.speed);
           updateBlock({ ...current, status: 'done', audioUrl: audio_url + '?t=' + Date.now(), cacheKey: cache_key, error: '' });
         } catch (err) {
           updateBlock({ ...current, status: 'error', error: err.message + (err.detail ? ` — ${err.detail}` : '') });

@@ -106,10 +106,11 @@ export function publicRouter({ dataDir, defaultModel }) {
   });
 
   router.post('/c/:slug/generate', loadProject, async (req, res) => {
-    const { voice_id, text } = req.body || {};
+    const { voice_id, text, speed } = req.body || {};
     if (!voice_id || typeof voice_id !== 'string') return res.status(400).json({ error: 'voice_id required' });
     if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' });
     if (text.length > MAX_TEXT_LEN) return res.status(400).json({ error: `text too long (max ${MAX_TEXT_LEN})` });
+    const cleanSpeed = Math.max(0.7, Math.min(1.2, Number(speed) || 1.0));
 
     const pairs = parsePronunciations(req.project.pronunciations);
     const finalText = applyPronunciations(text, pairs);
@@ -119,6 +120,7 @@ export function publicRouter({ dataDir, defaultModel }) {
         voiceId: voice_id,
         text: finalText,
         model: defaultModel,
+        speed: cleanSpeed,
         dataDir,
       });
       res.json({ cache_key: key, audio_url: `/audio/${key}.mp3` });
