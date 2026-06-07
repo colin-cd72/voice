@@ -14,7 +14,7 @@ export function publicRouter({ dataDir, defaultModel }) {
   function loadProject(req, res, next) {
     const { slug } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations FROM projects WHERE slug = ?').get(slug);
+    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations, script_blocks FROM projects WHERE slug = ?').get(slug);
     if (!project) return res.status(404).json({ error: 'project not found' });
     req.project = project;
     next();
@@ -128,6 +128,22 @@ export function publicRouter({ dataDir, defaultModel }) {
       console.error(e);
       res.status(502).json({ error: 'generation failed', detail: String(e.message || e) });
     }
+  });
+
+  router.patch('/c/:slug/script-blocks', loadProject, (req, res) => {
+    const { script_blocks } = req.body || {};
+    if (!Array.isArray(script_blocks)) return res.status(400).json({ error: 'script_blocks must be array' });
+    if (script_blocks.length > 200) return res.status(400).json({ error: 'too many blocks' });
+    const clean = script_blocks.map((b) => ({
+      label: typeof b.label === 'string' ? b.label.slice(0, 200) : '',
+      script: typeof b.script === 'string' ? b.script.slice(0, MAX_TEXT_LEN) : '',
+      speed: Math.max(0.7, Math.min(1.2, Number(b.speed) || 1.0)),
+    }));
+    const serialized = JSON.stringify(clean);
+    if (serialized.length > 2_000_000) return res.status(400).json({ error: 'payload too large' });
+    const db = getDb();
+    db.prepare('UPDATE projects SET script_blocks = ? WHERE id = ?').run(serialized, req.project.id);
+    res.json({ ok: true });
   });
 
   router.patch('/c/:slug/pronunciations', loadProject, (req, res) => {

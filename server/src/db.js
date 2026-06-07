@@ -49,6 +49,9 @@ export function initDb(dataDir) {
   if (!cols.find((c) => c.name === 'pronunciations')) {
     db.exec("ALTER TABLE projects ADD COLUMN pronunciations TEXT NOT NULL DEFAULT ''");
   }
+  if (!cols.find((c) => c.name === 'script_blocks')) {
+    db.exec("ALTER TABLE projects ADD COLUMN script_blocks TEXT NOT NULL DEFAULT '[]'");
+  }
 
   return db;
 }

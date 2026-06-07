@@ -144,6 +144,9 @@ export default function ScriptPage() {
 
   const [batchBusy, setBatchBusy] = useState(false);
   const [zipBusy, setZipBusy] = useState(false);
+  const [blocksSavedAt, setBlocksSavedAt] = useState(0);
+  const blocksTimer = useRef(null);
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
     api.getProject(slug)
@@ -151,13 +154,37 @@ export default function ScriptPage() {
         setProject(p.project);
         setShortlist(p.shortlist);
         setPron(p.project.pronunciations || '');
-        if (!seededDefault && p.project.default_script) {
+        let saved = [];
+        try {
+          saved = JSON.parse(p.project.script_blocks || '[]');
+        } catch {}
+        if (Array.isArray(saved) && saved.length > 0) {
+          setBlocks(saved.map((b) => newBlock({ label: b.label || '', script: b.script || '', speed: Number(b.speed) || 1.0 })));
+        } else if (!seededDefault && p.project.default_script) {
           setBlocks([newBlock({ script: p.project.default_script })]);
           setSeededDefault(true);
         }
+        hasLoaded.current = true;
       })
       .catch((err) => setError(err.message));
   }, [slug]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    if (blocksTimer.current) clearTimeout(blocksTimer.current);
+    blocksTimer.current = setTimeout(async () => {
+      try {
+        const payload = blocks.map((b) => ({ label: b.label, script: b.script, speed: b.speed }));
+        await api.updateScriptBlocks(slug, payload);
+        setBlocksSavedAt(Date.now());
+      } catch (err) {
+        console.error('failed to save script blocks', err);
+      }
+    }, 700);
+    return () => {
+      if (blocksTimer.current) clearTimeout(blocksTimer.current);
+    };
+  }, [blocks, slug]);
 
   useEffect(() => {
     if (!voice_id) {
@@ -427,6 +454,9 @@ PLEASE TAKE YOUR SEATS…"
           <div className="flex items-center justify-between flex-wrap gap-3 sticky top-[64px] bg-ink-950/80 backdrop-blur py-3 -mx-2 px-2 rounded-lg border border-ink-800 z-[5]">
             <div className="text-sm text-zinc-400">
               {blocks.length} block{blocks.length === 1 ? '' : 's'} · {readyCount} generated
+              {blocksSavedAt > 0 && Date.now() - blocksSavedAt < 3000 && (
+                <span className="text-accent ml-2">saved ✓</span>
+              )}
             </div>
             <div className="flex gap-2 flex-wrap">
               <button onClick={generateAll} disabled={batchBusy || !voice} className="btn-secondary">
