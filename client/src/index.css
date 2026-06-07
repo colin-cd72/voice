@@ -2,40 +2,140 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #0a0a0b;
+  --bg-radial: rgba(233, 185, 73, 0.08);
+  --surface: #121214;
+  --surface-2: #1a1a1d;
+  --surface-3: #26262a;
+  --border: #26262a;
+  --border-soft: #1a1a1d;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --text-faint: #71717a;
+  --accent: #e9b949;
+  --accent-hover: #d8a83a;
+  --accent-fg: #0a0a0b;
+  --danger: #f87171;
+  --audio-bg: #e8e8ea;
+  color-scheme: dark;
+}
+
+html.light {
+  --bg: #fafafa;
+  --bg-radial: rgba(233, 185, 73, 0.18);
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --border: #e4e4e7;
+  --border-soft: #f4f4f5;
+  --text: #18181b;
+  --text-muted: #52525b;
+  --text-faint: #71717a;
+  --accent: #b8860b;
+  --accent-hover: #a0750a;
+  --accent-fg: #ffffff;
+  --danger: #dc2626;
+  --audio-bg: #f4f4f5;
+  color-scheme: light;
+}
+
 html, body, #root {
   height: 100%;
 }
 
 body {
-  @apply bg-ink-950 text-zinc-100 font-sans antialiased;
-  background-image: radial-gradient(1200px 600px at 50% -10%, rgba(233, 185, 73, 0.08), transparent 60%);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg);
+  color: var(--text);
+  background-image: radial-gradient(1200px 600px at 50% -10%, var(--bg-radial), transparent 60%);
   background-attachment: fixed;
 }
 
+/* Tailwind color utility overrides driven by CSS variables — lets us toggle themes without touching JSX */
+.text-zinc-100 { color: var(--text); }
+.text-zinc-300 { color: var(--text); opacity: 0.85; }
+.text-zinc-400 { color: var(--text-muted); }
+.text-zinc-500 { color: var(--text-faint); }
+.text-red-400 { color: var(--danger); }
+.text-accent { color: var(--accent); }
+
+.bg-ink-950 { background-color: var(--bg); }
+.bg-ink-900 { background-color: var(--surface); }
+.bg-ink-800 { background-color: var(--surface-2); }
+.bg-ink-700 { background-color: var(--surface-3); }
+.bg-accent { background-color: var(--accent); color: var(--accent-fg); }
+
+.border-ink-700 { border-color: var(--border); }
+.border-ink-800 { border-color: var(--border-soft); }
+
+.bg-ink-950\/70 { background-color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.bg-ink-950\/80 { background-color: color-mix(in srgb, var(--bg) 80%, transparent); }
+
+.hover\:bg-ink-800:hover { background-color: var(--surface-2); }
+.hover\:bg-ink-600:hover { background-color: var(--surface-3); filter: brightness(1.1); }
+.hover\:bg-accent-hover:hover { background-color: var(--accent-hover); }
+.hover\:text-zinc-100:hover { color: var(--text); }
+.hover\:text-red-400:hover { color: var(--danger); }
+
+.focus\:ring-accent\/60:focus { --tw-ring-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.focus\:border-accent:focus { border-color: var(--accent); }
+.ring-accent { --tw-ring-color: var(--accent); }
+.hover\:ring-accent:hover { --tw-ring-color: var(--accent); }
+
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-accent text-ink-950 hover:bg-accent-hover;
+    @apply btn;
+    background-color: var(--accent);
+    color: var(--accent-fg);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
   }
   .btn-secondary {
-    @apply btn bg-ink-700 text-zinc-100 hover:bg-ink-600;
+    @apply btn;
+    background-color: var(--surface-3);
+    color: var(--text);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    filter: brightness(1.1);
   }
   .btn-ghost {
-    @apply btn bg-transparent text-zinc-300 hover:bg-ink-800;
+    @apply btn;
+    background-color: transparent;
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--surface-2);
+    color: var(--text);
   }
   .input {
-    @apply w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-accent/60 focus:border-accent;
+    @apply w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-2;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .input::placeholder {
+    color: var(--text-faint);
   }
   .card {
-    @apply rounded-xl bg-ink-900 border border-ink-700;
+    @apply rounded-xl;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
   }
   .chip {
-    @apply inline-flex items-center rounded-full bg-ink-800 text-zinc-300 text-xs px-2 py-0.5 border border-ink-700;
+    @apply inline-flex items-center rounded-full text-xs px-2 py-0.5;
+    background-color: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
   }
   .h-display {
-    @apply font-display tracking-tight;
+    font-family: 'Fraunces', Georgia, serif;
+    letter-spacing: -0.015em;
   }
 }
 
@@ -45,7 +145,7 @@ audio {
   color-scheme: light;
 }
 audio::-webkit-media-controls-panel {
-  background-color: #e8e8ea;
+  background-color: var(--audio-bg);
 }
 audio::-webkit-media-controls-enclosure {
   border-radius: 9999px;

@@ -1,9 +1,31 @@
+import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import Home from './pages/Home.jsx';
 import ProjectPage from './pages/ProjectPage.jsx';
 import ScriptPage from './pages/ScriptPage.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminProjects from './pages/AdminProjects.jsx';
+
+function ThemeToggle() {
+  const [isLight, setIsLight] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('light')
+  );
+  function toggle() {
+    const next = !isLight;
+    document.documentElement.classList.toggle('light', next);
+    localStorage.setItem('voice.theme', next ? 'light' : 'dark');
+    setIsLight(next);
+  }
+  return (
+    <button
+      onClick={toggle}
+      className="text-sm text-zinc-400 hover:text-zinc-100"
+      title={isLight ? 'switch to dark mode' : 'switch to light mode'}
+    >
+      {isLight ? '☾' : '☀'}
+    </button>
+  );
+}
 
 export default function App() {
   return (
@@ -13,9 +35,12 @@ export default function App() {
           <Link to="/" className="h-display text-xl font-semibold text-zinc-100">
             voice<span className="text-accent">.</span>
           </Link>
-          <Link to="/admin" className="text-sm text-zinc-400 hover:text-zinc-100">
-            admin
-          </Link>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <Link to="/admin" className="text-sm text-zinc-400 hover:text-zinc-100">
+              admin
+            </Link>
+          </div>
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-8">
