@@ -41,7 +41,12 @@ body {
 
 audio {
   width: 100%;
+  border-radius: 9999px;
+  color-scheme: light;
 }
 audio::-webkit-media-controls-panel {
-  background-color: #1a1a1d;
+  background-color: #e8e8ea;
+}
+audio::-webkit-media-controls-enclosure {
+  border-radius: 9999px;
 }
