@@ -19,10 +19,11 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="text-sm text-zinc-400 hover:text-zinc-100"
+      className="btn-ghost border border-ink-700 text-sm px-3 py-1.5"
       title={isLight ? 'switch to dark mode' : 'switch to light mode'}
     >
-      {isLight ? '☾' : '☀'}
+      <span className="mr-1.5 text-base leading-none">{isLight ? '☾' : '☀'}</span>
+      {isLight ? 'dark' : 'light'}
     </button>
   );
 }
