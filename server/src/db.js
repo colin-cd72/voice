@@ -55,6 +55,9 @@ export function initDb(dataDir) {
   if (!cols.find((c) => c.name === 'output_format')) {
     db.exec("ALTER TABLE projects ADD COLUMN output_format TEXT NOT NULL DEFAULT 'mp3_44100_192'");
   }
+  if (!cols.find((c) => c.name === 'model_id')) {
+    db.exec("ALTER TABLE projects ADD COLUMN model_id TEXT NOT NULL DEFAULT 'eleven_multilingual_v2'");
+  }
 
   return db;
 }

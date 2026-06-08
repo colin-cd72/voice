@@ -163,6 +163,7 @@ export default function ScriptPage() {
   const [zipBusy, setZipBusy] = useState(false);
   const [blocksSavedAt, setBlocksSavedAt] = useState(0);
   const [outputFormat, setOutputFormat] = useState('mp3_44100_192');
+  const [modelId, setModelId] = useState('eleven_multilingual_v2');
   const blocksTimer = useRef(null);
   const hasLoaded = useRef(false);
 
@@ -173,6 +174,7 @@ export default function ScriptPage() {
         setShortlist(p.shortlist);
         setPron(p.project.pronunciations || '');
         setOutputFormat(p.project.output_format || 'mp3_44100_192');
+        setModelId(p.project.model_id || 'eleven_multilingual_v2');
         let saved = [];
         try {
           saved = JSON.parse(p.project.script_blocks || '[]');
@@ -266,6 +268,16 @@ export default function ScriptPage() {
     setBlocks((bs) => bs.map((b) => ({ ...b, audioUrl: null, cacheKey: null, status: 'idle', error: '' })));
     try {
       await api.updateOutputFormat(slug, next);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function changeModel(next) {
+    setModelId(next);
+    setBlocks((bs) => bs.map((b) => ({ ...b, audioUrl: null, cacheKey: null, status: 'idle', error: '' })));
+    try {
+      await api.updateModel(slug, next);
     } catch (err) {
       setError(err.message);
     }
@@ -516,6 +528,16 @@ PLEASE TAKE YOUR SEATS…"
                   WAV 24k
                 </button>
               </div>
+              <select
+                value={modelId}
+                onChange={(e) => changeModel(e.target.value)}
+                className="input text-xs py-1 w-auto"
+                title="ElevenLabs TTS model. v3 is the newest and cleanest; turbo is fastest; multilingual_v2 is the default."
+              >
+                <option value="eleven_multilingual_v2">multilingual v2 (default)</option>
+                <option value="eleven_turbo_v2_5">turbo v2.5 (fast)</option>
+                <option value="eleven_v3">v3 (alpha, cleanest)</option>
+              </select>
             </div>
             <div className="flex gap-2 flex-wrap">
               {nonDefaultSpeedCount > 0 && (

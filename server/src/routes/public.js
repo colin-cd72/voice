@@ -14,6 +14,12 @@ const ALLOWED_OUTPUT_FORMATS = new Set([
   'pcm_24000',
 ]);
 
+const ALLOWED_MODELS = new Set([
+  'eleven_multilingual_v2',
+  'eleven_turbo_v2_5',
+  'eleven_v3',
+]);
+
 const MAX_TEXT_LEN = 5000;
 
 export function publicRouter({ dataDir, defaultModel }) {
@@ -22,7 +28,7 @@ export function publicRouter({ dataDir, defaultModel }) {
   function loadProject(req, res, next) {
     const { slug } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations, script_blocks, output_format FROM projects WHERE slug = ?').get(slug);
+    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations, script_blocks, output_format, model_id FROM projects WHERE slug = ?').get(slug);
     if (!project) return res.status(404).json({ error: 'project not found' });
     req.project = project;
     next();
@@ -124,11 +130,12 @@ export function publicRouter({ dataDir, defaultModel }) {
     const finalText = applyPronunciations(text, pairs);
 
     const format = req.project.output_format || 'mp3_44100_192';
+    const model = req.project.model_id || defaultModel;
     try {
       const { key, audioPath } = await getOrGenerate({
         voiceId: voice_id,
         text: finalText,
-        model: defaultModel,
+        model,
         speed: cleanSpeed,
         outputFormat: format,
         dataDir,
@@ -148,6 +155,16 @@ export function publicRouter({ dataDir, defaultModel }) {
     const db = getDb();
     db.prepare('UPDATE projects SET output_format = ? WHERE id = ?').run(output_format, req.project.id);
     res.json({ ok: true, output_format });
+  });
+
+  router.patch('/c/:slug/model', loadProject, (req, res) => {
+    const { model_id } = req.body || {};
+    if (!ALLOWED_MODELS.has(model_id)) {
+      return res.status(400).json({ error: 'invalid model_id' });
+    }
+    const db = getDb();
+    db.prepare('UPDATE projects SET model_id = ? WHERE id = ?').run(model_id, req.project.id);
+    res.json({ ok: true, model_id });
   });
 
   router.patch('/c/:slug/script-blocks', loadProject, (req, res) => {
