@@ -55,7 +55,10 @@ app.use(
   express.static(path.join(DATA_DIR, 'audio'), {
     maxAge: '7d',
     immutable: true,
-    setHeaders: (res) => res.setHeader('Content-Type', 'audio/mpeg'),
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.wav')) res.setHeader('Content-Type', 'audio/wav');
+      else res.setHeader('Content-Type', 'audio/mpeg');
+    },
   }),
 );
 

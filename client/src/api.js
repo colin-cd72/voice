@@ -44,5 +44,7 @@ export const api = {
     jsonFetch(`/api/c/${slug}/pronunciations`, { method: 'PATCH', body: JSON.stringify({ pronunciations }) }),
   updateScriptBlocks: (slug, script_blocks) =>
     jsonFetch(`/api/c/${slug}/script-blocks`, { method: 'PATCH', body: JSON.stringify({ script_blocks }) }),
+  updateOutputFormat: (slug, output_format) =>
+    jsonFetch(`/api/c/${slug}/output-format`, { method: 'PATCH', body: JSON.stringify({ output_format }) }),
   zipUrl: (slug) => `/api/c/${slug}/zip`,
 };

@@ -52,6 +52,9 @@ export function initDb(dataDir) {
   if (!cols.find((c) => c.name === 'script_blocks')) {
     db.exec("ALTER TABLE projects ADD COLUMN script_blocks TEXT NOT NULL DEFAULT '[]'");
   }
+  if (!cols.find((c) => c.name === 'output_format')) {
+    db.exec("ALTER TABLE projects ADD COLUMN output_format TEXT NOT NULL DEFAULT 'mp3_44100_192'");
+  }
 
   return db;
 }

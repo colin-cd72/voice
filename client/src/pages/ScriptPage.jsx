@@ -23,9 +23,12 @@ function parseScriptEmail(raw) {
   return blocks;
 }
 
-function downloadFilenameFor(project, voice, block, idx) {
+function extensionFor(format) {
+  return format && format.startsWith('pcm') ? 'wav' : 'mp3';
+}
+
+function downloadFilenameFor(project, voice, block, idx, format) {
   const label = (block.label || '').trim();
-  // Try to extract "Cue NNN" + the name after the separator (—, -, :)
   const m = label.match(/Cue\s+([\w.-]+)\s*[—–\-:]\s*(.+)/i);
   let base;
   if (m) {
@@ -36,7 +39,7 @@ function downloadFilenameFor(project, voice, block, idx) {
     base = `block-${idx + 1}`;
   }
   const clean = base.replace(/[^\w. -]+/g, '').replace(/\s+/g, ' ').trim();
-  return `${clean || `block-${idx + 1}`}.mp3`;
+  return `${clean || `block-${idx + 1}`}.${extensionFor(format)}`;
 }
 
 let nextId = 1;
@@ -44,7 +47,7 @@ function newBlock(initial = {}) {
   return { id: nextId++, label: '', script: '', speed: 1.0, audioUrl: null, cacheKey: null, status: 'idle', error: '', ...initial };
 }
 
-function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, canRemove }) {
+function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, canRemove, format }) {
   async function generate() {
     if (!voice) return onChange({ ...block, error: 'pick a voice first' });
     if (!block.script.trim()) return onChange({ ...block, error: 'script is empty' });
@@ -57,7 +60,7 @@ function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, can
     }
   }
 
-  const downloadName = downloadFilenameFor(project, voice, block, idx);
+  const downloadName = downloadFilenameFor(project, voice, block, idx, format);
 
   return (
     <div className="card p-5 space-y-3">
@@ -155,6 +158,7 @@ export default function ScriptPage() {
   const [batchBusy, setBatchBusy] = useState(false);
   const [zipBusy, setZipBusy] = useState(false);
   const [blocksSavedAt, setBlocksSavedAt] = useState(0);
+  const [outputFormat, setOutputFormat] = useState('mp3_44100_192');
   const blocksTimer = useRef(null);
   const hasLoaded = useRef(false);
 
@@ -164,6 +168,7 @@ export default function ScriptPage() {
         setProject(p.project);
         setShortlist(p.shortlist);
         setPron(p.project.pronunciations || '');
+        setOutputFormat(p.project.output_format || 'mp3_44100_192');
         let saved = [];
         try {
           saved = JSON.parse(p.project.script_blocks || '[]');
@@ -241,6 +246,16 @@ export default function ScriptPage() {
     }, 700);
   }
 
+  async function changeOutputFormat(next) {
+    setOutputFormat(next);
+    setBlocks((bs) => bs.map((b) => ({ ...b, audioUrl: null, cacheKey: null, status: 'idle', error: '' })));
+    try {
+      await api.updateOutputFormat(slug, next);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function generateAll() {
     setBatchBusy(true);
     try {
@@ -270,9 +285,9 @@ export default function ScriptPage() {
     }
     setZipBusy(true);
     try {
-      const items = ready.map((b, i) => ({
+      const items = ready.map((b) => ({
         cache_key: b.cacheKey,
-        filename: downloadFilenameFor(project, voice, b, blocks.indexOf(b)),
+        filename: downloadFilenameFor(project, voice, b, blocks.indexOf(b), outputFormat),
       }));
       const zipName = `${project.slug}-${voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.zip`;
       const res = await fetch(api.zipUrl(slug), {
@@ -462,11 +477,29 @@ PLEASE TAKE YOUR SEATS…"
           </div>
 
           <div className="flex items-center justify-between flex-wrap gap-3 sticky top-[64px] bg-ink-950/80 backdrop-blur py-3 -mx-2 px-2 rounded-lg border border-ink-800 z-[5]">
-            <div className="text-sm text-zinc-400">
-              {blocks.length} block{blocks.length === 1 ? '' : 's'} · {readyCount} generated
-              {blocksSavedAt > 0 && Date.now() - blocksSavedAt < 3000 && (
-                <span className="text-accent ml-2">saved ✓</span>
-              )}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-sm text-zinc-400">
+                {blocks.length} block{blocks.length === 1 ? '' : 's'} · {readyCount} generated
+                {blocksSavedAt > 0 && Date.now() - blocksSavedAt < 3000 && (
+                  <span className="text-accent ml-2">saved ✓</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 bg-ink-800 rounded-lg p-1 border border-ink-700">
+                <button
+                  onClick={() => changeOutputFormat('mp3_44100_192')}
+                  className={`px-2 py-1 text-xs rounded ${outputFormat === 'mp3_44100_192' ? 'bg-ink-700 text-zinc-100' : 'text-zinc-400'}`}
+                  title="MP3 192 kbps — smaller files, slight compression"
+                >
+                  MP3 192
+                </button>
+                <button
+                  onClick={() => changeOutputFormat('pcm_24000')}
+                  className={`px-2 py-1 text-xs rounded ${outputFormat === 'pcm_24000' ? 'bg-ink-700 text-zinc-100' : 'text-zinc-400'}`}
+                  title="WAV 24 kHz uncompressed — larger files, no compression artifacts"
+                >
+                  WAV 24k
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button onClick={generateAll} disabled={batchBusy || !voice} className="btn-secondary">
@@ -490,6 +523,7 @@ PLEASE TAKE YOUR SEATS…"
                 onChange={updateBlock}
                 onRemove={() => removeBlock(b.id)}
                 canRemove={blocks.length > 1}
+                format={outputFormat}
               />
             ))}
             <button onClick={addBlock} className="btn-secondary w-full">

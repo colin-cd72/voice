@@ -4,7 +4,15 @@ import fs from 'node:fs';
 import archiver from 'archiver';
 import { getDb } from '../db.js';
 import { listAccountVoices, searchSharedVoices, getVoice } from '../elevenlabs.js';
-import { getOrGenerate, cacheKey } from '../audio-cache.js';
+import { getOrGenerate, cacheKey, extensionFor } from '../audio-cache.js';
+
+const ALLOWED_OUTPUT_FORMATS = new Set([
+  'mp3_44100_128',
+  'mp3_44100_192',
+  'pcm_16000',
+  'pcm_22050',
+  'pcm_24000',
+]);
 
 const MAX_TEXT_LEN = 5000;
 
@@ -14,7 +22,7 @@ export function publicRouter({ dataDir, defaultModel }) {
   function loadProject(req, res, next) {
     const { slug } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations, script_blocks FROM projects WHERE slug = ?').get(slug);
+    const project = db.prepare('SELECT id, slug, name, default_script, pronunciations, script_blocks, output_format FROM projects WHERE slug = ?').get(slug);
     if (!project) return res.status(404).json({ error: 'project not found' });
     req.project = project;
     next();
@@ -115,19 +123,31 @@ export function publicRouter({ dataDir, defaultModel }) {
     const pairs = parsePronunciations(req.project.pronunciations);
     const finalText = applyPronunciations(text, pairs);
 
+    const format = req.project.output_format || 'mp3_44100_192';
     try {
-      const { key } = await getOrGenerate({
+      const { key, audioPath } = await getOrGenerate({
         voiceId: voice_id,
         text: finalText,
         model: defaultModel,
         speed: cleanSpeed,
+        outputFormat: format,
         dataDir,
       });
-      res.json({ cache_key: key, audio_url: `/audio/${key}.mp3` });
+      res.json({ cache_key: key, audio_url: `/audio/${path.basename(audioPath)}`, ext: extensionFor(format) });
     } catch (e) {
       console.error(e);
       res.status(502).json({ error: 'generation failed', detail: String(e.message || e) });
     }
+  });
+
+  router.patch('/c/:slug/output-format', loadProject, (req, res) => {
+    const { output_format } = req.body || {};
+    if (!ALLOWED_OUTPUT_FORMATS.has(output_format)) {
+      return res.status(400).json({ error: 'invalid output_format' });
+    }
+    const db = getDb();
+    db.prepare('UPDATE projects SET output_format = ? WHERE id = ?').run(output_format, req.project.id);
+    res.json({ ok: true, output_format });
   });
 
   router.patch('/c/:slug/script-blocks', loadProject, (req, res) => {
