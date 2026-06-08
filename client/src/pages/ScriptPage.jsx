@@ -107,7 +107,11 @@ function ScriptBlock({ block, idx, voice, project, slug, onChange, onRemove, can
               className="accent-accent w-24"
               style={{ accentColor: 'var(--accent)' }}
             />
-            <span className="tabular-nums w-10 text-right">{block.speed.toFixed(2)}x</span>
+            <span
+              className={`tabular-nums w-10 text-right ${block.speed !== 1.0 ? 'text-accent font-medium' : ''}`}
+            >
+              {block.speed.toFixed(2)}x
+            </span>
             {block.speed !== 1.0 && (
               <button
                 onClick={() => onChange({ ...block, speed: 1.0 })}
@@ -246,6 +250,17 @@ export default function ScriptPage() {
     }, 700);
   }
 
+  function resetAllSpeeds() {
+    const altered = blocks.filter((b) => b.speed !== 1.0);
+    if (altered.length === 0) return;
+    if (!confirm(`Reset ${altered.length} block${altered.length === 1 ? '' : 's'} back to 1.00x? You'll need to regenerate them.`)) return;
+    setBlocks((bs) => bs.map((b) =>
+      b.speed !== 1.0
+        ? { ...b, speed: 1.0, audioUrl: null, cacheKey: null, status: 'idle', error: '' }
+        : b
+    ));
+  }
+
   async function changeOutputFormat(next) {
     setOutputFormat(next);
     setBlocks((bs) => bs.map((b) => ({ ...b, audioUrl: null, cacheKey: null, status: 'idle', error: '' })));
@@ -329,6 +344,7 @@ export default function ScriptPage() {
     : [];
 
   const readyCount = blocks.filter((b) => b.cacheKey).length;
+  const nonDefaultSpeedCount = blocks.filter((b) => b.speed !== 1.0).length;
 
   return (
     <div className="space-y-6">
@@ -502,6 +518,15 @@ PLEASE TAKE YOUR SEATS…"
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
+              {nonDefaultSpeedCount > 0 && (
+                <button
+                  onClick={resetAllSpeeds}
+                  className="btn-ghost border border-ink-700 text-xs"
+                  title="Reset every block's speed back to 1.00x (speed != 1.0 causes phasing artifacts)"
+                >
+                  ↺ reset speeds ({nonDefaultSpeedCount})
+                </button>
+              )}
               <button onClick={generateAll} disabled={batchBusy || !voice} className="btn-secondary">
                 {batchBusy ? 'generating…' : 'generate all'}
               </button>
