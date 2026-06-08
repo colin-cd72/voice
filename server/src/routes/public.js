@@ -177,7 +177,10 @@ export function publicRouter({ dataDir, defaultModel }) {
       if (!row) continue;
       const abs = path.join(dataDir, row.audio_path);
       if (!fs.existsSync(abs)) continue;
-      const safeName = (it.filename || `${it.cache_key.slice(0, 8)}.mp3`).replace(/[^a-z0-9._-]+/gi, '-');
+      const safeName = (it.filename || `${it.cache_key.slice(0, 8)}.mp3`)
+        .replace(/[^\w. \-]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim() || `${it.cache_key.slice(0, 8)}.mp3`;
       resolved.push({ abs, name: safeName });
     }
     if (resolved.length === 0) return res.status(404).json({ error: 'no generated audio matches' });

@@ -68,9 +68,10 @@ export async function getVoice(voiceId) {
   };
 }
 
-export async function generateTts({ voiceId, text, model, speed = 1.0 }) {
+export async function generateTts({ voiceId, text, model, speed = 1.0, outputFormat = 'mp3_44100_192' }) {
   const clampedSpeed = Math.max(0.7, Math.min(1.2, Number(speed) || 1.0));
-  const res = await fetch(`${BASE}/text-to-speech/${voiceId}`, {
+  const url = `${BASE}/text-to-speech/${voiceId}?output_format=${encodeURIComponent(outputFormat)}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json', accept: 'audio/mpeg' },
     body: JSON.stringify({
@@ -87,6 +88,11 @@ export async function generateTts({ voiceId, text, model, speed = 1.0 }) {
   });
   if (!res.ok) {
     const body = await res.text();
+    const planRelated = /tier|plan|quality|subscription|available/i.test(body);
+    if (outputFormat !== 'mp3_44100_128' && (res.status === 400 || res.status === 403) && planRelated) {
+      console.warn(`[warn] ${outputFormat} not available on this plan — falling back to mp3_44100_128`);
+      return generateTts({ voiceId, text, model, speed: clampedSpeed, outputFormat: 'mp3_44100_128' });
+    }
     throw new Error(`ElevenLabs TTS failed: ${res.status} ${body}`);
   }
   const buf = Buffer.from(await res.arrayBuffer());

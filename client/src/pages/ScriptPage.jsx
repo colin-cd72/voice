@@ -24,9 +24,19 @@ function parseScriptEmail(raw) {
 }
 
 function downloadFilenameFor(project, voice, block, idx) {
-  const labelSlug = (block.label || `block-${idx + 1}`).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-  const voiceSlug = voice ? voice.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() : 'voice';
-  return `${project.slug}-${voiceSlug}-${labelSlug}.mp3`;
+  const label = (block.label || '').trim();
+  // Try to extract "Cue NNN" + the name after the separator (—, -, :)
+  const m = label.match(/Cue\s+([\w.-]+)\s*[—–\-:]\s*(.+)/i);
+  let base;
+  if (m) {
+    base = `${m[1]} ${m[2].trim()}`;
+  } else if (label) {
+    base = label;
+  } else {
+    base = `block-${idx + 1}`;
+  }
+  const clean = base.replace(/[^\w. -]+/g, '').replace(/\s+/g, ' ').trim();
+  return `${clean || `block-${idx + 1}`}.mp3`;
 }
 
 let nextId = 1;
