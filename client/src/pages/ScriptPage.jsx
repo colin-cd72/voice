@@ -253,7 +253,7 @@ export default function ScriptPage() {
   function resetAllSpeeds() {
     const altered = blocks.filter((b) => b.speed !== 1.0);
     if (altered.length === 0) return;
-    if (!confirm(`Reset ${altered.length} block${altered.length === 1 ? '' : 's'} back to 1.00x? You'll need to regenerate them.`)) return;
+    if (!confirm(`Reset ${altered.length} block${altered.length === 1 ? '' : 's'} back to 1.00x?`)) return;
     setBlocks((bs) => bs.map((b) =>
       b.speed !== 1.0
         ? { ...b, speed: 1.0, audioUrl: null, cacheKey: null, status: 'idle', error: '' }
